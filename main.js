@@ -1,8 +1,8 @@
 /**
  * @file
- * containing NodeJS code to provide REST service of Google Map
  * 
- * Get REST Service handling
+ * REST API to obtiain route as a list of places as well as a static image.
+ *
  * author : unimity
  */
 
@@ -52,70 +52,72 @@ app.get('/api/map', function (req, res){
   var image = queryString.image;
   // Checking orgin and destinations provided or not.
   if (origin == undefined || destination == undefined) {
-    res.send("Origin or Destination is missing");
+    res.send({error: "Origin or Destination is missing"});
     res.end();
-  }
-  // Callback URL to route service
-  var directionMapURL = GOOGLEDIRECTIONURL +'origin=' + origin + '&destination=' + destination;
-  routeGenerator()
-  .then(
-    responseData = request(directionMapURL, function(error, directionResponse, directionBody) {
-      if (error) {
-        throw new Error("Error in processing your request.");
-      } else if(directionResponse.statusCode != 200) {
-        throw new Error("Can't connect to Google MAP API, Please try later.");
-      }
-      var responseObject = [];
-      var map_path = '';
-      var jsonObjDirection = JSON.parse(directionBody);
-      if (jsonObjDirection.routes[0] == undefined || jsonObjDirection.routes[0].legs[0] == undefined) {
-        var errorMsg = "Can't find road route between origin and destination."
-        res.send(errorMsg);
-        res.end();
-      }
-      myRoute = jsonObjDirection.routes[0].legs[0];
-      for (var i = 0; i < myRoute.steps.length; i++) {
-        map_path +=  JSON.stringify(myRoute.steps[i].start_location);
-        responseObject.push({
-          id: i,
-          duration: myRoute.steps[i].duration.text,
-          path: myRoute.steps[i].start_location,
-          polyline: myRoute.steps[i].distance.text,
-          instructions: myRoute.steps[i].html_instructions,
-          duration: myRoute.steps[i].duration.text,
-          turn_detail: myRoute.steps[i].maneuver
-        });
-      }
-      // If image required.
-      if (image == 1) {
-        var base64 = require('node-base64-image'); // Initialize image to bytestream convert module.
-        // Constructing path as defined by google map api.
-        var parseString = map_path.replace(/\{"lat":/g, '');
-        parseString = parseString.replace(/\"lng":/g, '');
-        parseString = parseString.replace(/\}/g,'|');
-        parseString = parseString.slice(0, -1);
-        // Callback URL to static image.
-        var staticImageURL = GOOGLEIMAGEURL + parseString;
-        var options = {string: true};
-        // Image to Byte stream convert callback.
-        base64.base64encoder(staticImageURL, options, function (streamError, byteStreamImage) {
-          if (streamError) {
-            throw new Error("Can't generate byte stream for the Map.");
-          }
-          responseObject.push({image: byteStreamImage});
-          res.send(responseObject);
+  } else {
+    // Callback URL to route service
+    var directionMapURL = GOOGLEDIRECTIONURL +'origin=' + origin + '&destination=' + destination;
+    routeGenerator()
+    .then(
+      responseData = request(directionMapURL, function(error, directionResponse, directionBody) {
+        if (error) {
+          throw new Error("Error in processing your request.");
+        } else if(directionResponse.statusCode != 200) {
+          throw new Error("Can't connect to Google MAP API, Please try later.");
+        }
+        var responseObject = [];
+        var map_path = '';
+        var jsonObjDirection = JSON.parse(directionBody);
+        if (jsonObjDirection.routes[0] == undefined || jsonObjDirection.routes[0].legs[0] == undefined) {
+          var errorMsg = "Can't find road route between origin and destination."
+          res.send({error: errorMsg});
           res.end();
-        });
-      } else {
-        res.send(responseObject);
-        res.end(); 
-      }
-    })
-  )
-  .fail(function (error) {
-    res.send("Error : " + error);
-    res.end();
-  });
+        } else {
+          myRoute = jsonObjDirection.routes[0].legs[0];
+          for (var i = 0; i < myRoute.steps.length; i++) {
+            map_path +=  JSON.stringify(myRoute.steps[i].start_location);
+            responseObject.push({
+              id: i,
+              duration: myRoute.steps[i].duration.text,
+              path: myRoute.steps[i].start_location,
+              polyline: myRoute.steps[i].distance.text,
+              instructions: myRoute.steps[i].html_instructions,
+              duration: myRoute.steps[i].duration.text,
+              turn_detail: myRoute.steps[i].maneuver
+            });
+          }
+          // If image required.
+          if (image == 1) {
+            var base64 = require('node-base64-image'); // Initialize image to bytestream convert module.
+            // Constructing path as defined by google map api.
+            var parseString = map_path.replace(/\{"lat":/g, '');
+            parseString = parseString.replace(/\"lng":/g, '');
+            parseString = parseString.replace(/\}/g,'|');
+            parseString = parseString.slice(0, -1);
+            // Callback URL to static image.
+            var staticImageURL = GOOGLEIMAGEURL + parseString;
+            var options = {string: true};
+            // Image to Byte stream convert callback.
+            base64.base64encoder(staticImageURL, options, function (streamError, byteStreamImage) {
+              if (streamError) {
+                throw new Error("Can't generate byte stream for the Map.");
+              }
+              responseObject.push({image: byteStreamImage});
+              res.send(responseObject);
+              res.end();
+            });
+          } else {
+            res.send(responseObject);
+            res.end(); 
+          }
+        }
+      })
+    )
+    .fail(function (error) {
+      res.send({error: error});
+      res.end();
+    });
+  }
 });
 
 /**
